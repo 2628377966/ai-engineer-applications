@@ -1,0 +1,204 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Smart Payment Checkout Backend - Lambda + API Gateway + CloudFormation
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: smart-payment-checkout
+    Description: Project name used for resource naming
+  
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Deployment environment
+  
+  OpenAIAPIKey:
+    Type: String
+    NoEcho: true
+    Description: OpenAI API key for DeepSeek (encrypted in CloudFormation)
+  
+  OpenAIBaseURL:
+    Type: String
+    Default: https://api.deepseek.com
+    Description: OpenAI API base URL
+  
+  OpenAIModel:
+    Type: String
+    Default: deepseek-chat
+    Description: OpenAI model name
+
+Resources:
+  # IAM Role for Lambda
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-lambda-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LambdaCloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}*
+
+  # Lambda Function
+  PaymentCheckoutFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${ProjectName}-checkout-${Environment}
+      Description: Smart Payment Checkout API
+      Runtime: python3.11
+      Handler: app.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          OPENAI_API_KEY: !Ref OpenAIAPIKey
+          OPENAI_BASE_URL: !Ref OpenAIBaseURL
+          OPENAI_MODEL: !Ref OpenAIModel
+          ENVIRONMENT: !Ref Environment
+      Code:
+        ZipFile: |
+          import json
+          import os
+          from fastapi import FastAPI
+          from mangum import Mangum
+          from pydantic import BaseModel
+          import random
+          import uuid
+          
+          app = FastAPI()
+          
+          class PaymentRequest(BaseModel):
+              amount: float
+              currency: str = "CNY"
+              payment_method: str
+              card_number: str = None
+              card_country: str = None
+              ip_country: str = "CN"
+              user_history: int = 0
+          
+          @app.get("/health")
+          def health():
+              return {"status": "ok", "service": "smart-checkout"}
+          
+          @app.post("/checkout")
+          def checkout(request: PaymentRequest):
+              # Simplified checkout logic for Lambda
+              return {
+                  "status": "success",
+                  "transaction_id": f"TX_{random.randint(100000, 999999)}",
+                  "risk_score": 35,
+                  "message": "Payment processed successfully"
+              }
+          
+          lambda_handler = Mangum(app)
+
+  # API Gateway
+  RestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub ${ProjectName}-api-${Environment}
+      Description: Smart Payment Checkout API
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # API Gateway Resource
+  ApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: '{proxy+}'
+
+  # API Gateway Method
+  ApiMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref ApiResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:${AWS::AccountId}:lambda:path/2015-03-31/functions/${PaymentCheckoutFunction.Arn}/invocations
+
+  # Lambda Permission for API Gateway
+  LambdaApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PaymentCheckoutFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*
+
+  # API Gateway Deployment
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: ApiMethod
+    Properties:
+      RestApiId: !Ref RestApi
+      Description: !Sub Deployment for ${Environment} environment
+
+  # API Gateway Stage
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    DependsOn: ApiDeployment
+    Properties:
+      RestApiId: !Ref RestApi
+      DeploymentId: !Ref ApiDeployment
+      StageName: !Ref Environment
+      Description: !Sub ${Environment} stage
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          LoggingLevel: INFO
+          DataTraceEnabled: true
+          MetricsEnabled: true
+
+  # CloudWatch Log Group
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub API-Gateway-Execution-Logs_${ProjectName}_${Environment}
+      RetentionInDays: 7
+
+  # CloudWatch Log Group for Lambda
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PaymentCheckoutFunction}
+      RetentionInDays: 7
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}
+  
+  LambdaFunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt PaymentCheckoutFunction.Arn
+  
+  LambdaFunctionName:
+    Description: Lambda function name
+    Value: !Ref PaymentCheckoutFunction

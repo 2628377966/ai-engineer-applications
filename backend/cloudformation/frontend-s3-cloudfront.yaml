@@ -1,0 +1,162 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Smart Payment Checkout Frontend - S3 + CloudFront + CloudFormation
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: smart-payment-checkout
+    Description: Project name used for resource naming
+  
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Deployment environment
+  
+  DomainName:
+    Type: String
+    Default: ''
+    Description: Optional custom domain name (leave empty for CloudFront default)
+
+Resources:
+  # S3 Bucket for frontend
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${ProjectName}-frontend-${Environment}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+      VersioningConfiguration:
+        Status: Enabled
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # S3 Bucket Policy for CloudFront access
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipal
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub arn:aws:s3:::${FrontendBucket}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}
+
+  # CloudFront Origin Access Control
+  CloudFrontOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub ${ProjectName}-oac-${Environment}
+        SigningProtocol: sigv4
+        SigningBehavior: always
+        OriginAccessControlOriginType: s3
+
+  # CloudFront Distribution
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt CloudFrontOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: origin-access-control
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          Compress: true
+          DefaultTTL: 86400
+          MaxTTL: 31536000
+          MinTTL: 0
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: !If [!Equals [!Ref DomainName, ''], true, false]
+          AcmCertificateArn: !If [!Equals [!Ref DomainName, ''], '', !Ref DomainName]
+          SslSupportMethod: !If [!Equals [!Ref DomainName, ''], sni-only, vip]
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+
+  # Optional: Custom Domain (if provided)
+  CustomDomain:
+    Type: AWS::Route53::RecordSetGroup
+    Condition: HasCustomDomain
+    Properties:
+      HostedZoneId: !Ref HostedZone
+      Comment: !Sub ${ProjectName} frontend domain
+      RecordSets:
+        - Name: !Ref DomainName
+          Type: A
+          AliasTarget:
+            DNSName: !GetAtt CloudFrontDistribution.DomainName
+            EvaluateTargetHealth: false
+
+  # Hosted Zone (for custom domain)
+  HostedZone:
+    Type: AWS::Route53::HostedZone
+    Condition: HasCustomDomain
+    Properties:
+      Name: !Select
+        - !Split [!Ref DomainName, '.', 1]
+        - 0
+        - 1
+        - 2
+
+  # Condition for custom domain
+  HasCustomDomain:
+    Type: StringEquals
+    Condition: !Equals [!Ref DomainName, '']
+
+Outputs:
+  WebsiteURL:
+    Description: S3 website URL
+    Value: !GetAtt FrontendBucket.WebsiteURL
+  
+  CloudFrontURL:
+    Description: CloudFront distribution URL
+    Value: !Sub https://${CloudFrontDistribution.DomainName}
+  
+  DistributionID:
+    Description: CloudFront distribution ID
+    Value: !Ref CloudFrontDistribution
+  
+  BucketName:
+    Description: S3 bucket name
+    Value: !Ref FrontendBucket

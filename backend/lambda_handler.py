@@ -1,3 +1,6 @@
+import json
+import os
+from mangum import Mangum
 from fastapi import FastAPI
 from pydantic import BaseModel
 import random
@@ -96,6 +99,11 @@ def process_payment(payment_request):
         "message": result['message']
     }
 
+@app.get("/health")
+def health():
+    """Health check endpoint"""
+    return {"status": "ok", "service": "smart-checkout"}
+
 @app.post("/checkout")
 def checkout(request: PaymentRequest):
     """Checkout endpoint"""
@@ -145,7 +153,5 @@ def verify_3ds_code(request: ThreeDSVerifyRequest):
     
     return result
 
-@app.get("/health")
-def health():
-    """Health check endpoint"""
-    return {"status": "ok", "service": "smart-checkout"}
+# Lambda handler
+lambda_handler = Mangum(app)
