@@ -1,0 +1,41 @@
+{
+  "risk_rules": [
+    {
+      "name": "amount",
+      "description": "大额交易风险",
+      "field": "amount",
+      "threshold": 5000,
+      "score": 20,
+      "message": "大额交易",
+      "operator": "gt"
+    },
+    {
+      "name": "user_history",
+      "description": "新用户风险",
+      "field": "user_history",
+      "threshold": 0,
+      "score": 15,
+      "message": "新用户",
+      "operator": "eq"
+    },
+    {
+      "name": "cross_border",
+      "description": "跨境交易风险",
+      "threshold": null,
+      "score": 25,
+      "message": "跨境交易",
+      "operator": "not_eq",
+      "fields": ["ip_country", "card_country"]
+    }
+  ],
+  "risk_levels": {
+    "high": 60,
+    "medium": 30,
+    "low": 0
+  },
+  "thresholds": {
+    "requires_3ds": 40,
+    "requires_llm_insight": 30
+  },
+  "max_score": 100
+}

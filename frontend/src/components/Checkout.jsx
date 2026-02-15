@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import './Checkout.css'
+import ThreeDSChallenge from './ThreeDSChallenge'
 
 function Checkout() {
   const [formData, setFormData] = useState({
@@ -16,6 +17,8 @@ function Checkout() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [showQRCode, setShowQRCode] = useState(false)
+  const [showThreeDS, setShowThreeDS] = useState(false)
+  const [threeDSTransaction, setThreeDSTransaction] = useState(null)
   const [countdown, setCountdown] = useState(300)
   const [paymentStatus, setPaymentStatus] = useState('pending')
 
@@ -63,6 +66,24 @@ function Checkout() {
     }, 5000)
   }
 
+  const handleThreeDSComplete = (verificationResult) => {
+    setShowThreeDS(false)
+    setResult({
+      status: 'success',
+      transaction_id: verificationResult.transaction_id,
+      risk_score: threeDSTransaction?.risk_score || 0,
+      message: verificationResult.message || '3DS验证成功，支付完成'
+    })
+  }
+
+  const handleThreeDSCancel = () => {
+    setShowThreeDS(false)
+    setResult({
+      status: 'cancelled',
+      message: '3DS验证已取消'
+    })
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     
@@ -105,7 +126,19 @@ function Checkout() {
       })
       
       const data = await response.json()
-      setResult(data)
+      
+      if (data.status === 'pending_3ds') {
+        setThreeDSTransaction({
+          transaction_id: `3DS_${Math.floor(Math.random() * 900000) + 100000}`,
+          amount: formData.amount,
+          card_number: formData.card_number,
+          risk_score: data.risk?.risk_score || 0
+        })
+        setShowThreeDS(true)
+        setResult(data)
+      } else {
+        setResult(data)
+      }
     } catch (error) {
       console.error('Error:', error)
       setResult({
@@ -119,7 +152,17 @@ function Checkout() {
 
   return (
     <div className="checkout-container">
-      <h1>智能支付收银台</h1>
+      {showThreeDS && threeDSTransaction && (
+        <ThreeDSChallenge
+          transactionData={threeDSTransaction}
+          onVerificationComplete={handleThreeDSComplete}
+          onCancel={handleThreeDSCancel}
+        />
+      )}
+      
+      {!showThreeDS && (
+        <>
+          <h1>智能支付收银台</h1>
       
       <form onSubmit={handleSubmit} className="checkout-form">
         <div className="form-group">
@@ -281,6 +324,8 @@ function Checkout() {
             <p className="error-message">{result.message}</p>
           )}
         </div>
+      )}
+        </>
       )}
     </div>
   )

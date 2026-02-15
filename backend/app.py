@@ -1,8 +1,13 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 import random
+import uuid
+from risk_service import risk_check, verify_3ds, validate_3ds_code
 
 app = FastAPI()
+
+# In-memory storage for pending 3DS transactions
+pending_transactions = {}
 
 class PaymentRequest(BaseModel):
     amount: float
@@ -13,55 +18,10 @@ class PaymentRequest(BaseModel):
     ip_country: str = "CN"
     user_history: int = 0
 
-def generate_llm_analysis(transaction, risk_score, reasons):
-    """Mock LLM analysis for risk assessment"""
-    return f"基于交易分析，该笔交易风险评分为{risk_score}，主要风险因素包括：{', '.join(reasons)}。建议{'加强监控' if risk_score > 50 else '正常处理'}。"
-
-def risk_check(transaction):
-    """Risk assessment function"""
-    risk_score = 0
-    reasons = []
-    
-    # Rule 1: Amount
-    if transaction['amount'] > 5000:
-        risk_score += 20
-        reasons.append("大额交易")
-    
-    # Rule 2: New user
-    if transaction.get('user_history') == 0:
-        risk_score += 15
-        reasons.append("新用户")
-    
-    # Rule 3: Cross-border
-    if transaction.get('ip_country') != transaction.get('card_country'):
-        risk_score += 25
-        reasons.append("跨境交易")
-    
-    # LLM enhancement
-    if risk_score > 30:
-        llm_insight = generate_llm_analysis(transaction, risk_score, reasons)
-    else:
-        llm_insight = None
-    
-    return {
-        "risk_score": risk_score,
-        "risk_level": "HIGH" if risk_score > 60 else "MEDIUM" if risk_score > 30 else "LOW",
-        "requires_3ds": risk_score > 40,
-        "reasons": reasons,
-        "llm_insight": llm_insight
-    }
-
-def verify_3ds(transaction, risk_result):
-    """Mock 3DS verification"""
-    if not risk_result['requires_3ds']:
-        return {"status": "skipped", "reason": "低风险交易"}
-    
-    return {
-        "status": "challenge",
-        "method": "3DS2.0",
-        "issuer_bank": "Mock Bank",
-        "verification_url": "/3ds-challenge-page"
-    }
+class ThreeDSVerifyRequest(BaseModel):
+    transaction_id: str
+    verification_code: str
+    card_number: str
 
 def mock_credit_card_processor(payment_request):
     """Mock credit card payment processor"""
@@ -96,8 +56,16 @@ def process_payment(payment_request):
     if risk['requires_3ds']:
         three_ds_result = verify_3ds(payment_request, risk)
         if three_ds_result['status'] == 'challenge':
+            # Generate transaction ID and store payment data
+            transaction_id = str(uuid.uuid4())
+            pending_transactions[transaction_id] = {
+                "payment_request": payment_request,
+                "risk": risk,
+                "timestamp": random.randint(100000, 999999)
+            }
             return {
                 "status": "pending_3ds",
+                "transaction_id": transaction_id,
                 "risk": risk,
                 "next_step": "complete_3ds_verification"
             }
@@ -129,6 +97,49 @@ def process_payment(payment_request):
 def checkout(request: PaymentRequest):
     """Checkout endpoint"""
     result = process_payment(request.dict())
+    return result
+
+@app.post("/3ds-verify")
+def verify_3ds_code(request: ThreeDSVerifyRequest):
+    """3DS verification endpoint"""
+    result = validate_3ds_code(request)
+    
+    if result['success']:
+        # Retrieve stored transaction data
+        if request.transaction_id not in pending_transactions:
+            return {
+                "success": False,
+                "message": "交易ID无效或已过期"
+            }
+        
+        stored_data = pending_transactions[request.transaction_id]
+        payment_request = stored_data["payment_request"]
+        risk = stored_data["risk"]
+        
+        # Process payment with original transaction data
+        method = payment_request['payment_method']
+        if method == 'credit_card':
+            payment_result = mock_credit_card_processor(payment_request)
+        elif method == 'alipay':
+            payment_result = mock_alipay_processor(payment_request)
+        elif method == 'wechat_pay':
+            payment_result = mock_wechat_processor(payment_request)
+        else:
+            return {
+                "success": False,
+                "message": "不支持的支付方式"
+            }
+        
+        # Clean up stored transaction data
+        del pending_transactions[request.transaction_id]
+        
+        result.update({
+            "status": "success",
+            "transaction_id": payment_result['id'],
+            "payment_message": payment_result['message'],
+            "risk_score": risk['risk_score']
+        })
+    
     return result
 
 @app.get("/health")

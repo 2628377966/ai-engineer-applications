@@ -1,0 +1,329 @@
+.three-ds-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+}
+
+.three-ds-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 480px;
+  width: 100%;
+  overflow: hidden;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.three-ds-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 24px;
+  text-align: center;
+  color: white;
+}
+
+.bank-logo {
+  margin-bottom: 16px;
+}
+
+.logo-placeholder {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 8px 24px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 14px;
+  display: inline-block;
+}
+
+.three-ds-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.three-ds-content {
+  padding: 32px 24px;
+}
+
+.security-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #f0fdf4;
+  color: #16a34a;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  font-weight: 500;
+}
+
+.shield-icon {
+  font-size: 20px;
+}
+
+.transaction-info {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.transaction-info h3 {
+  margin: 0 0 8px 0;
+  color: #1f2937;
+  font-size: 20px;
+}
+
+.transaction-info p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.amount-display {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.amount-label {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.amount-value {
+  color: #1f2937;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.merchant-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.merchant-label {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.merchant-value {
+  color: #1f2937;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.verification-form {
+  margin-bottom: 24px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: #374151;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.verification-input {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 4px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  text-align: center;
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+
+.verification-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.verification-input:disabled {
+  background-color: #f3f4f6;
+  cursor: not-allowed;
+}
+
+.input-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #9ca3af;
+  text-align: center;
+}
+
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fef2f2;
+  color: #dc2626;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.error-icon {
+  font-size: 16px;
+}
+
+.timer-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #fef3c7;
+  color: #d97706;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.timer-icon {
+  font-size: 16px;
+}
+
+.attempts-info {
+  text-align: center;
+  color: #6b7280;
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+
+.button-group {
+  display: flex;
+  gap: 12px;
+}
+
+.verify-button {
+  flex: 2;
+  padding: 14px 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.verify-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.verify-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.verify-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cancel-button {
+  flex: 1;
+  padding: 14px 24px;
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancel-button:hover:not(:disabled) {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.cancel-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.security-tips {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.security-tips h4 {
+  margin: 0 0 12px 0;
+  color: #16a34a;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.security-tips ul {
+  margin: 0;
+  padding-left: 20px;
+  list-style: none;
+}
+
+.security-tips li {
+  color: #15803d;
+  font-size: 13px;
+  margin-bottom: 6px;
+  position: relative;
+  padding-left: 20px;
+}
+
+.security-tips li:before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  font-weight: bold;
+}
+
+.security-tips li:last-child {
+  margin-bottom: 0;
+}
+
+.three-ds-footer {
+  background: #f9fafb;
+  padding: 16px 24px;
+  text-align: center;
+  border-top: 1px solid #e5e7eb;
+}
+
+.footer-text {
+  color: #9ca3af;
+  font-size: 12px;
+}
