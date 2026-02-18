@@ -2,9 +2,11 @@
 
 ## 🎯 推荐架构
 
-### 后端：Lambda + API Gateway ✅
-- **为什么选择Lambda：**
-  - API服务完美适合serverless架构
+### 后端：Lambda Function URL ✅ (成本优化)
+- **为什么选择Lambda Function URL：**
+  - 完全免费（替代API Gateway的$3.50/百万调用费用）
+  - 更低延迟（直接调用Lambda，无API Gateway中间层）
+  - 简单配置（内置CORS和HTTPS支持）
   - 按需付费，成本效益高
   - 自动扩展，无需管理服务器
   - CloudFormation基础设施即代码
@@ -15,12 +17,20 @@
     - Lambda是计算服务，不是文件托管
     - React应用是静态文件（HTML, CSS, JS）
     - 需要持续运行的HTTP服务器
-  - **S3 + CloudFront优势**：
+  - **S3 + CloudFront优势：**
     - 全球CDN加速
     - HTTPS免费证书
     - 高可用性（99.99%）
     - 极低成本（存储+流量费用）
     - 自动缓存优化
+
+### DNS：Cloudflare DNS ✅ (成本优化)
+- **为什么选择Cloudflare DNS：**
+  - 完全免费（替代Route53的$0.50/月费用）
+  - 全球DNS网络
+  - 内置CDN和DDoS防护
+  - 简单易用的管理界面
+  - 免费SSL证书
 
 ## 📁 项目结构
 
@@ -33,14 +43,19 @@ ai-engineer-applications/
 │   ├── llm_service.py                   # LLM服务
 │   ├── rules.json                       # 风险规则
 │   ├── cloudformation/
-│   │   ├── backend-lambda.yaml           # 后端CloudFormation模板
+│   │   ├── backend-lambda-url.yaml       # 后端Lambda Function URL模板
+│   │   ├── backend-lambda.yaml          # 后端Lambda + API Gateway模板（已弃用）
 │   │   └── frontend-s3-cloudfront.yaml  # 前端CloudFormation模板
 │   └── requirements.txt                # Python依赖
 ├── frontend/
 │   ├── src/                            # React源代码
 │   ├── package.json                     # Node.js依赖
 │   └── vite.config.js                  # Vite配置
-└── deploy.sh                          # 部署脚本
+├── deploy-cost-optimized.sh            # Linux/Mac成本优化部署脚本
+├── deploy-cost-optimized.ps1           # Windows成本优化部署脚本
+├── CLOUDFLARE_DNS_GUIDE.md           # Cloudflare DNS配置指南
+├── COST_OPTIMIZED_DEPLOYMENT.md       # 成本优化部署文档
+└── AWS_SERVICE_COMPARISON.md         # AWS服务对比分析
 ```
 
 ## 🚀 快速部署
@@ -67,21 +82,85 @@ aws configure --profile smart-payment
 export OPENAI_API_KEY="your_deepseek_api_key"
 ```
 
-### 一键部署
+### 一键部署（成本优化）
 
-```bash
-# 使用部署脚本
-./deploy.sh dev us-east-1 smart-payment
+#### Windows (PowerShell)
+```powershell
+# 设置环境变量
+$env:OPENAI_API_KEY="your_deepseek_api_key"
 
-# 参数说明：
-# 1. 环境: dev | staging | prod
-# 2. 区域: us-east-1 | us-west-2 | eu-west-1
-# 3. AWS配置文件: default | smart-payment
+# 运行成本优化部署脚本
+.\deploy-cost-optimized.ps1 -Environment dev -Region us-east-1 -Profile default
 ```
+
+#### Linux/Mac
+```bash
+# 设置环境变量
+export OPENAI_API_KEY="your_deepseek_api_key"
+
+# 运行成本优化部署脚本
+chmod +x deploy-cost-optimized.sh
+./deploy-cost-optimized.sh dev us-east-1 default
+```
+
+**参数说明：**
+1. 环境: dev | staging | prod
+2. 区域: us-east-1 | us-west-2 | eu-west-1
+3. AWS配置文件: default | smart-payment
+
+### 步骤2: 配置Cloudflare DNS（可选）
+
+如果你有域名，可以配置Cloudflare DNS：
+
+1. **添加域名到Cloudflare**
+   - 登录 https://dash.cloudflare.com/
+   - 添加你的域名
+   - 更新域名的NS记录
+
+2. **配置前端DNS**
+   ```
+   类型: CNAME
+   名称: app (或 @)
+   目标: d1234567890.cloudfront.net
+   代理: 已代理 (橙色云朵)
+   ```
+
+3. **配置后端DNS**
+   ```
+   类型: CNAME
+   名称: api
+   目标: abc123xyz.lambda-url.us-east-1.on.aws
+   代理: 仅DNS (灰色云朵)
+   ```
+
+详细配置请参考 [CLOUDFLARE_DNS_GUIDE.md](CLOUDFLARE_DNS_GUIDE.md)
+
+### 步骤2（替代方案）：直接使用AWS URL（无域名）
+
+如果你没有域名，可以直接使用AWS提供的公共URL，完全免费！
+
+**优势：**
+- ✅ 完全免费（无域名和DNS费用）
+- ✅ 无需配置DNS
+- ✅ 自动HTTPS
+- ✅ 即开即用
+- ✅ 全球CDN加速
+
+**部署后会自动获得：**
+- 后端URL：`https://abc123xyz.lambda-url.us-east-1.on.aws`
+- 前端URL：`https://d1234567890.cloudfront.net`
+
+**更新前端配置：**
+```javascript
+// frontend/src/config.js 或 .env
+const API_BASE_URL = 'https://abc123xyz.lambda-url.us-east-1.on.aws';
+```
+
+详细说明请参考 [NO_DOMAIN_DEPLOYMENT.md](NO_DOMAIN_DEPLOYMENT.md)
 
 ## 📋 详细部署步骤
 
-### 1. 后端部署（Lambda + API Gateway）
+### 1. 后端部署（Lambda Function URL）
 
 #### 1.1 准备Lambda函数
 
@@ -95,9 +174,9 @@ cd backend
 #### 1.2 部署CloudFormation栈
 
 ```bash
-# 使用CloudFormation模板部署
+# 使用CloudFormation模板部署（Lambda Function URL）
 aws cloudformation deploy \
-  --template-file cloudformation/backend-lambda.yaml \
+  --template-file cloudformation/backend-lambda-url.yaml \
   --stack-name smart-payment-checkout-backend-dev \
   --parameter-overrides \
     ProjectName=smart-payment-checkout \
@@ -110,13 +189,13 @@ aws cloudformation deploy \
   --profile smart-payment
 ```
 
-#### 1.3 获取API端点
+#### 1.3 获取Lambda Function URL
 
 ```bash
-# 从CloudFormation输出获取API URL
+# 从CloudFormation输出获取Lambda Function URL
 aws cloudformation describe-stacks \
   --stack-name smart-payment-checkout-backend-dev \
-  --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" \
+  --query "Stacks[0].Outputs[?OutputKey=='LambdaFunctionUrl'].OutputValue" \
   --output text \
   --region us-east-1 \
   --profile smart-payment
@@ -124,7 +203,7 @@ aws cloudformation describe-stacks \
 
 **输出示例：**
 ```
-https://abc123xyz.execute-api.us-east-1.amazonaws.com/dev
+https://abc123xyz.lambda-url.us-east-1.on.aws
 ```
 
 ### 2. 前端部署（S3 + CloudFront）
@@ -192,7 +271,13 @@ https://d1234567890.cloudfront.net
 
 ```javascript
 // frontend/src/config.js 或 .env
-const API_BASE_URL = 'https://abc123xyz.execute-api.us-east-1.amazonaws.com/dev';
+const API_BASE_URL = 'https://abc123xyz.lambda-url.us-east-1.on.aws';
+```
+
+或者使用Cloudflare DNS配置的域名：
+```javascript
+// 使用Cloudflare DNS配置的域名
+const API_BASE_URL = 'https://api.yourdomain.com';
 ```
 
 ## 🔧 配置说明
@@ -228,15 +313,17 @@ ENVIRONMENT=dev
 
 ## 📊 成本估算
 
-### 后端（Lambda + API Gateway）
+### 后端（Lambda Function URL）
 
 | 服务 | 免费额度 | 预估成本 |
 |-----|---------|----------|
 | Lambda | 100万请求/月 | $0.20/百万请求 |
-| API Gateway | 100万API调用/月 | $3.50/百万调用 |
+| Lambda Function URL | 完全免费 | $0 |
 | CloudWatch Logs | 5GB日志存储 | $0.50/GB |
 
-**月成本（中等使用）：** ~$5-15
+**月成本（中等使用）：** ~$1-5
+
+**成本节省：** 相比API Gateway方案节省$3.50/月
 
 ### 前端（S3 + CloudFront）
 
@@ -248,10 +335,49 @@ ENVIRONMENT=dev
 
 **月成本（中等使用）：** ~$2-10
 
+### DNS服务（可选）
+
+#### 有域名方案
+
+| 服务 | 免费额度 | 预估成本 |
+|-----|---------|----------|
+| Cloudflare DNS | 完全免费 | $0 |
+| Route53 | $0.50/月/zone | $0.50/月 |
+
+**月成本：** $0（使用Cloudflare）
+
+**成本节省：** 相比Route53方案节省$0.50/月
+
+#### 无域名方案（推荐用于测试/开发）
+
+| 服务 | 免费额度 | 预估成本 |
+|-----|---------|----------|
+| DNS服务 | 完全免费 | $0 |
+
+**月成本：** $0
+
+**优势：**
+- ✅ 完全免费
+- ✅ 无需配置
+- ✅ 即开即用
+
+详细说明请参考 [NO_DOMAIN_DEPLOYMENT.md](NO_DOMAIN_DEPLOYMENT.md)
+
 ### 总成本估算
 
-- **开发环境：** ~$10-25/月
-- **生产环境：** ~$20-50/月
+#### 有域名方案
+- **开发环境：** ~$3-15/月
+- **生产环境：** ~$5-30/月
+
+**成本节省：** 相比原始方案节省$4.00/月（$48.00/年）
+
+#### 无域名方案（推荐用于测试/开发）
+- **开发环境：** ~$2-13/月
+- **生产环境：** ~$4-28/月
+
+**额外节省：** 相比有域名方案节省$1-2/月（域名费用）
+
+详细成本分析请参考 [COST_OPTIMIZED_DEPLOYMENT.md](COST_OPTIMIZED_DEPLOYMENT.md)
 
 ## 🔍 监控和日志
 
@@ -260,9 +386,6 @@ ENVIRONMENT=dev
 ```bash
 # 查看Lambda日志
 aws logs tail /aws/lambda/smart-payment-checkout-checkout-dev --follow
-
-# 查看API Gateway日志
-aws logs tail /aws/apigateway/smart-payment-checkout-api-dev --follow
 ```
 
 ### CloudWatch指标
@@ -288,12 +411,13 @@ aws cloudwatch get-metric-statistics \
 2. 优化代码性能
 3. 检查外部API调用延迟
 
-### 问题：API Gateway 502错误
+### 问题：Lambda Function URL无法访问
 
 **解决方案：**
-1. 检查Lambda函数是否正常
-2. 验证API Gateway配置
-3. 查看CloudWatch日志
+1. 检查Lambda函数状态
+2. 验证Function URL配置
+3. 检查IAM权限
+4. 查看CloudWatch日志
 
 ### 问题：CloudFront 403错误
 
@@ -305,9 +429,10 @@ aws cloudwatch get-metric-statistics \
 ### 问题：前端无法连接后端
 
 **解决方案：**
-1. 检查CORS配置
-2. 验证API端点URL
+1. 检查Lambda Function URL的CORS配置
+2. 验证Cloudflare DNS设置
 3. 确认Lambda函数权限
+4. 检查前端API配置
 
 ## 🚀 生产环境最佳实践
 
@@ -322,9 +447,10 @@ aws cloudwatch get-metric-statistics \
 ### 2. 性能优化
 
 - 配置CloudFront缓存策略
-- 启用Lambda预留并发
-- 使用API Gateway缓存
+- 启用Lambda预留并发（如果需要）
+- 使用Cloudflare CDN缓存（可选）
 - 优化前端资源压缩
+- 启用HTTP/2和HTTP/3
 
 ### 3. 可靠性
 
@@ -345,9 +471,9 @@ aws cloudwatch get-metric-statistics \
 ### 水平扩展
 
 Lambda自动扩展，无需配置：
-- API Gateway自动处理并发请求
 - Lambda自动创建执行环境
 - 无需管理服务器
+- 自动处理并发请求
 
 ### 垂直扩展
 

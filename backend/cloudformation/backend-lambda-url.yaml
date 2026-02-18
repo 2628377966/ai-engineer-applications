@@ -1,0 +1,139 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Smart Payment Checkout Backend - Lambda Function URL (Cost Optimized)
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: smart-payment-checkout
+    Description: Project name used for resource naming
+  
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Deployment environment
+  
+  OpenAIAPIKey:
+    Type: String
+    NoEcho: true
+    Description: OpenAI API key for DeepSeek (encrypted in CloudFormation)
+  
+  OpenAIBaseURL:
+    Type: String
+    Default: https://api.deepseek.com
+    Description: OpenAI API base URL
+  
+  OpenAIModel:
+    Type: String
+    Default: deepseek-chat
+    Description: OpenAI model name
+
+Resources:
+  # IAM Role for Lambda
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-lambda-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LambdaCloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}*
+
+  # Lambda Function
+  PaymentCheckoutFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${ProjectName}-checkout-${Environment}
+      Description: Smart Payment Checkout API
+      Runtime: python3.11
+      Handler: lambda_app.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          OPENAI_API_KEY: !Ref OpenAIAPIKey
+          OPENAI_BASE_URL: !Ref OpenAIBaseURL
+          OPENAI_MODEL: !Ref OpenAIModel
+          ENVIRONMENT: !Ref Environment
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: lambda-deployment.zip
+
+  # Lambda Function URL
+  LambdaFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      FunctionName: !Ref PaymentCheckoutFunction
+      AuthType: NONE
+      Cors:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - POST
+          - GET
+          - OPTIONS
+        AllowHeaders:
+          - "*"
+        MaxAge: 3600
+
+  # Lambda Permission for Function URL
+  LambdaUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PaymentCheckoutFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
+  # S3 Bucket for Lambda Code
+  LambdaCodeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${ProjectName}-lambda-code-${Environment}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+
+  # CloudWatch Log Group for Lambda
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PaymentCheckoutFunction}
+      RetentionInDays: 7
+
+Outputs:
+  LambdaFunctionUrl:
+    Description: Lambda Function URL
+    Value: !GetAtt LambdaFunctionUrl.FunctionUrl
+  
+  LambdaFunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt PaymentCheckoutFunction.Arn
+  
+  LambdaFunctionName:
+    Description: Lambda function name
+    Value: !Ref PaymentCheckoutFunction
+  
+  LambdaCodeBucket:
+    Description: S3 bucket for Lambda code
+    Value: !Ref LambdaCodeBucket
